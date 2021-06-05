@@ -263,10 +263,17 @@ func TestBooleans(t *testing.T) {
 type testStructTag struct {
 	F1 int
 	F2 int `hash:"-"`
+	f  int
 }
 
 func TestTag(t *testing.T) {
 	if !bytes.Equal(Hash(testStructTag{F1: 1, F2: 2}), Hash(testStructTag{F1: 1, F2: 3})) {
+		t.Fatal("Expecting the same boolean value to have the same hash")
+	}
+}
+
+func TestUnexported(t *testing.T) {
+	if !bytes.Equal(Hash(testStructTag{F1: 1, f: 2}), Hash(testStructTag{F1: 1, f: 3})) {
 		t.Fatal("Expecting the same boolean value to have the same hash")
 	}
 }
