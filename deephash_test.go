@@ -259,3 +259,14 @@ func TestBooleans(t *testing.T) {
 		t.Fatal("Expecting true to hash differently than false")
 	}
 }
+
+type testStructTag struct {
+	F1 int
+	F2 int `hash:"-"`
+}
+
+func TestTag(t *testing.T) {
+	if !bytes.Equal(Hash(testStructTag{F1: 1, F2: 2}), Hash(testStructTag{F1: 1, F2: 3})) {
+		t.Fatal("Expecting the same boolean value to have the same hash")
+	}
+}

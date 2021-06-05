@@ -46,6 +46,9 @@ func deepHash(src reflect.Value, visited map[uintptr]*visit, depth int, hasher f
 	switch src.Kind() {
 	case reflect.Struct:
 		for i, n := 0, src.NumField(); i < n; i++ {
+			if src.Type().Field(i).Tag.Get("hash") == "-" {
+				continue
+			}
 			if b := deepHash(src.Field(i), visited, depth+1, hasher); b != nil {
 				hash.Write(b)
 			}
