@@ -3,6 +3,7 @@ package deephash
 import (
 	"encoding/binary"
 	"fmt"
+	"hash"
 	"hash/fnv"
 	"reflect"
 	"sort"
@@ -17,7 +18,7 @@ type visit struct {
 }
 
 // Traverses recursively hashing each exported value
-func deepHash(src reflect.Value, visited map[uintptr]*visit, depth int) []byte {
+func deepHash(src reflect.Value, visited map[uintptr]*visit, depth int, hasher func() hash.Hash) []byte {
 	if !src.IsValid() {
 		return nil
 	}
@@ -35,7 +36,7 @@ func deepHash(src reflect.Value, visited map[uintptr]*visit, depth int) []byte {
 		visited[h] = &visit{addr, typ, seen}
 	}
 
-	hash := fnv.New64a()
+	hash := hasher()
 
 	// deal with pointers/interfaces
 	for src.Kind() == reflect.Ptr || src.Kind() == reflect.Interface {
@@ -45,7 +46,7 @@ func deepHash(src reflect.Value, visited map[uintptr]*visit, depth int) []byte {
 	switch src.Kind() {
 	case reflect.Struct:
 		for i, n := 0, src.NumField(); i < n; i++ {
-			if b := deepHash(src.Field(i), visited, depth+1); b != nil {
+			if b := deepHash(src.Field(i), visited, depth+1, hasher); b != nil {
 				hash.Write(b)
 			}
 		}
@@ -54,7 +55,7 @@ func deepHash(src reflect.Value, visited map[uintptr]*visit, depth int) []byte {
 		indexedByHash := make(map[string]reflect.Value)
 
 		for i, key := range src.MapKeys() {
-			kh := fmt.Sprintf("%x", deepHash(key, visited, depth+1))
+			kh := fmt.Sprintf("%x", deepHash(key, visited, depth+1, hasher))
 			sortedHashedKeys[i] = kh
 			indexedByHash[kh] = src.MapIndex(key)
 		}
@@ -63,11 +64,11 @@ func deepHash(src reflect.Value, visited map[uintptr]*visit, depth int) []byte {
 		// hash each value, in order
 		for _, kh := range sortedHashedKeys {
 			hash.Write([]byte(kh))
-			hash.Write(deepHash(indexedByHash[kh], visited, depth+1))
+			hash.Write(deepHash(indexedByHash[kh], visited, depth+1, hasher))
 		}
 	case reflect.Slice, reflect.Array:
 		for i := 0; i < src.Len(); i++ {
-			hash.Write(deepHash(src.Index(i), visited, depth+1))
+			hash.Write(deepHash(src.Index(i), visited, depth+1, hasher))
 		}
 	case reflect.String:
 		hash.Write([]byte(src.String()))
@@ -92,6 +93,12 @@ func deepHash(src reflect.Value, visited map[uintptr]*visit, depth int) []byte {
 // Hash returns an fnv64a hash of src, hashing recursively any exported
 // properties, including slices and maps/
 func Hash(src interface{}) []byte {
+	return CustomHash(src, func() hash.Hash { return fnv.New64a() })
+}
+
+// CustomHash returns a custom hash of src, hashing recursively any exported
+// properties, including slices and maps/
+func CustomHash(src interface{}, hasher func() hash.Hash) []byte {
 	vSrc := reflect.ValueOf(src)
-	return deepHash(vSrc, make(map[uintptr]*visit), 0)
+	return deepHash(vSrc, make(map[uintptr]*visit), 0, hasher)
 }
